@@ -120,9 +120,11 @@
         <input id="f-usd" type="number" min="0" step="0.0001" onchange="saveRates();render();">
         <label>Kurs EUR/PLN (NBP)</label>
         <input id="f-eur" type="number" min="0" step="0.0001" onchange="saveRates();render();">
-        <label>Marża brokera na przewalutowaniu (%)</label>
+        <button onclick="refreshNbpRates()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);width:100%;margin-top:4px;">Pobierz aktualny kurs NBP</button>
+        <div id="nbp-status" class="hint"></div>
+        <label style="margin-top:14px;">Marża brokera na przewalutowaniu (%)</label>
         <input id="f-margin" type="number" min="0" step="0.01" onchange="saveRates();render();">
-        <div class="hint">XTB dolicza marżę do kursu NBP przy przewalutowaniu (domyślnie 0,5%) — kolumna "Kurs" w tabeli pokazuje już kurs z marżą. Nadal możesz go nadpisać ręcznie per pozycja.</div>
+        <div class="hint">XTB dolicza marżę do kursu NBP przy przewalutowaniu (domyślnie 0,5%) — kolumna "Kurs" w tabeli pokazuje już kurs z marżą. Nadal możesz go nadpisać ręcznie per pozycja. NBP publikuje kurs raz dziennie ok. 12:00, więc "Pobierz aktualny kurs" da świeży kurs z dzisiejszej tabeli, nie kurs co do minuty.</div>
       </div>
 
       <div class="card">
@@ -525,7 +527,37 @@ function renderInner(){
   });
 }
 
-function exportData(){
+async function refreshNbpRates(){
+  const statusEl = document.getElementById('nbp-status');
+  statusEl.textContent = 'Pobieram...';
+  statusEl.style.color = '#8B968E';
+  try{
+    const [usdRes, eurRes] = await Promise.all([
+      fetch('https://api.nbp.pl/api/exchangerates/rates/a/usd/?format=json'),
+      fetch('https://api.nbp.pl/api/exchangerates/rates/a/eur/?format=json')
+    ]);
+    if(!usdRes.ok || !eurRes.ok) throw new Error('NBP nie odpowiedziało poprawnie');
+    const usdData = await usdRes.json();
+    const eurData = await eurRes.json();
+    const usdMid = usdData.rates && usdData.rates[0] && usdData.rates[0].mid;
+    const eurMid = eurData.rates && eurData.rates[0] && eurData.rates[0].mid;
+    const date = usdData.rates && usdData.rates[0] && usdData.rates[0].effectiveDate;
+    if(typeof usdMid !== 'number' || typeof eurMid !== 'number') throw new Error('Nieoczekiwana odpowiedź NBP');
+    rates.usd = usdMid;
+    rates.eur = eurMid;
+    document.getElementById('f-usd').value = rates.usd;
+    document.getElementById('f-eur').value = rates.eur;
+    await saveRates();
+    render();
+    statusEl.textContent = 'Zaktualizowano — tabela NBP z dnia ' + (date || '?') + '.';
+    statusEl.style.color = '#4FA98C';
+  }catch(e){
+    statusEl.textContent = 'Nie udało się pobrać kursu (' + (e && e.message ? e.message : 'błąd sieci') + '). Wpisz ręcznie albo spróbuj ponownie.';
+    statusEl.style.color = '#C1543C';
+  }
+}
+
+async function exportData(){
   const payload = { assets, buyAmount, startingCash, rates };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
