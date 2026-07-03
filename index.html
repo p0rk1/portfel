@@ -158,6 +158,14 @@
         <input id="f-buy" type="number" min="0" step="0.01" placeholder="np. 500" onchange="saveBuyAmount();render();">
         <div class="hint">Do liczenia ile razy dokupić, żeby trafić w cel.</div>
       </div>
+
+      <div class="card">
+        <label>Finnhub API key (dla live cen akcji z USA)</label>
+        <input id="f-finnhub-key" type="text" placeholder="wklej swój klucz" onchange="saveFinnhubKey();">
+        <button onclick="refreshAllPrices()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);width:100%;margin-top:8px;">Aktualizuj ceny (spółki z USA)</button>
+        <div id="finnhub-status" class="hint"></div>
+        <div class="hint">Działa tylko dla pozycji notowanych na giełdach USA (np. AAPL, BA, META). Spółki z GPW, LSE, XETRA itd. trzeba nadal aktualizować ręcznie. Ustaw ticker giełdowy w kolumnie "Ticker (US)" w tabeli — jeśli puste, pozycja jest pomijana.</div>
+      </div>
     </div>
 
     <div>
@@ -197,6 +205,7 @@
               <th>Wal.</th>
               <th class="num">Kurs</th>
               <th class="num">Cena aktualna</th>
+              <th>Ticker (US)</th>
               <th class="num">Koszt (PLN)</th>
               <th class="num">Wartość / zmiana</th>
               <th class="num">% portfela</th>
@@ -237,6 +246,7 @@ let assets = [];
 let buyAmount = 0;
 let startingCash = 0;
 let rates = { usd: 3.7568, eur: 4.2905, marginPct: 0.5 };
+let finnhubKey = '';
 
 async function load(){
   try{
@@ -276,11 +286,17 @@ async function load(){
     }catch(e){ /* brak commitowanego json obok index.html, lub otwarte lokalnie — zostaje puste */ }
   }
 
+  try{
+    const r5 = await store.get('portfel-finnhub-key-v3');
+    if(r5) finnhubKey = r5.value;
+  }catch(e){ finnhubKey = ''; }
+
   document.getElementById('f-buy').value = buyAmount || '';
   document.getElementById('f-cash').value = startingCash || '';
   document.getElementById('f-usd').value = rates.usd;
   document.getElementById('f-eur').value = rates.eur;
   document.getElementById('f-margin').value = rates.marginPct;
+  document.getElementById('f-finnhub-key').value = finnhubKey;
   render();
 }
 
@@ -329,7 +345,8 @@ function addAsset(){
     name, qty, buyPrice, currency,
     curPrice: isNaN(curPrice) ? buyPrice : curPrice,
     target: isNaN(target) ? 0 : target,
-    customRate: null
+    customRate: null,
+    usTicker: null
   });
   document.getElementById('f-name').value='';
   document.getElementById('f-qty').value='';
@@ -351,6 +368,8 @@ function updateField(i, field, value){
   } else if(field === 'customRate'){
     const v = parseFloat(value);
     assets[i].customRate = (isNaN(v) || v <= 0) ? null : v;
+  } else if(field === 'usTicker'){
+    assets[i].usTicker = value.trim().toUpperCase() || null;
   } else {
     const v = parseFloat(value);
     assets[i][field] = isNaN(v) ? 0 : v;
@@ -513,6 +532,7 @@ function renderInner(){
       </td>
       <td class="num"><input class="cell-input" type="number" step="0.0001" value="${a.rate.toFixed(4)}" ${a.currency==='PLN'?'disabled':''} onchange="updateField(${i},'customRate',this.value)"></td>
       <td class="num"><input class="cell-input" type="number" step="0.01" value="${a.curPrice}" onchange="updateField(${i},'curPrice',this.value)"></td>
+      <td><input class="cell-input" type="text" style="width:64px;text-align:left;padding:5px 6px;" value="${a.usTicker || ''}" placeholder="np. AAPL" onchange="updateField(${i},'usTicker',this.value)"></td>
       <td class="num">${fmt(a.cost)}</td>
       <td class="num">
         ${fmt(a.current)} PLN<br>
@@ -555,6 +575,48 @@ async function refreshNbpRates(){
     statusEl.textContent = 'Nie udało się pobrać kursu (' + (e && e.message ? e.message : 'błąd sieci') + '). Wpisz ręcznie albo spróbuj ponownie.';
     statusEl.style.color = '#C1543C';
   }
+}
+
+async function saveFinnhubKey(){
+  finnhubKey = document.getElementById('f-finnhub-key').value.trim();
+  try{ await store.set('portfel-finnhub-key-v3', finnhubKey); }catch(e){ console.error(e); }
+}
+
+async function refreshAllPrices(){
+  const statusEl = document.getElementById('finnhub-status');
+  if(!finnhubKey){
+    statusEl.textContent = 'Wklej najpierw swój Finnhub API key powyżej.';
+    statusEl.style.color = '#C1543C';
+    return;
+  }
+  const targets = assets.map((a,i)=>({a,i})).filter(x => x.a.usTicker);
+  if(targets.length === 0){
+    statusEl.textContent = 'Żadna pozycja nie ma ustawionego "Ticker (US)".';
+    statusEl.style.color = '#C1543C';
+    return;
+  }
+  statusEl.textContent = 'Pobieram ceny (' + targets.length + ')...';
+  statusEl.style.color = '#8B968E';
+  let okCount = 0, failCount = 0;
+  for(const {a, i} of targets){
+    try{
+      const res = await fetch('https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(a.usTicker) + '&token=' + encodeURIComponent(finnhubKey));
+      if(!res.ok) throw new Error('status ' + res.status);
+      const data = await res.json();
+      if(typeof data.c === 'number' && data.c > 0){
+        assets[i].curPrice = data.c;
+        okCount++;
+      } else {
+        failCount++;
+      }
+    }catch(e){
+      failCount++;
+    }
+  }
+  saveAssets();
+  render();
+  statusEl.textContent = 'Zaktualizowano ' + okCount + ' z ' + targets.length + (failCount ? ' (błędy: ' + failCount + ')' : '') + '.';
+  statusEl.style.color = failCount ? '#C1543C' : '#4FA98C';
 }
 
 async function exportData(){
