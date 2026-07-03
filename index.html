@@ -556,9 +556,19 @@ function render(){
 function renderInner(){
   const unlockArea = document.getElementById('unlock-area');
   if(unlocked){
-    unlockArea.innerHTML = '<div class="hint">🔓 Szczegóły widoczne. <a href="#" onclick="lockAgain();return false;" style="color:var(--gold);">Zablokuj ponownie</a></div>';
+    unlockArea.innerHTML = '<div class="hint" style="display:flex;align-items:center;gap:10px;">🔓 Szczegóły widoczne.<button onclick="lockAgain()" style="background:var(--surface-2);color:var(--gold);border:1px solid var(--line);padding:6px 12px;">Zablokuj ponownie</button></div>';
   } else {
     unlockArea.innerHTML = '<input id="f-unlock" type="password" class="cell-input" style="width:100%;text-align:left;" placeholder="Wpisz frazę, aby zobaczyć szczegóły" oninput="checkUnlock(this.value)">';
+  }
+
+  const cashInput = document.getElementById('f-cash');
+  const buyInput = document.getElementById('f-buy');
+  if(unlocked){
+    cashInput.type = 'number'; cashInput.readOnly = false; cashInput.value = startingCash || '';
+    buyInput.type = 'number'; buyInput.readOnly = false; buyInput.value = buyAmount || '';
+  } else {
+    cashInput.type = 'password'; cashInput.readOnly = true; cashInput.value = startingCash ? '000000' : '';
+    buyInput.type = 'password'; buyInput.readOnly = true; buyInput.value = buyAmount ? '000' : '';
   }
 
   const rows = assets.map(a=>{
