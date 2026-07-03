@@ -112,7 +112,7 @@
           <button onclick="document.getElementById('f-import').click()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);">Wczytaj dane</button>
         </div>
         <input type="file" id="f-import" accept=".json" style="display:none;" onchange="importData(this.files[0])">
-        <div class="hint">"Zapisz dane" pobiera plik .json z Twoim portfelem — wgraj go przez "Wczytaj dane" po otwarciu nowej wersji narzędzia.</div>
+        <div class="hint">"Zapisz dane" pobiera plik .json z Twoim portfelem. Na hostingu (np. GitHub Pages): wgraj go obok index.html pod nazwą <b>portfel-dane.json</b> — nowe urządzenia/przeglądarki wczytają go automatycznie przy starcie, o ile nie mają jeszcze własnych lokalnych danych. W innym wypadku użyj "Wczytaj dane".</div>
       </div>
 
       <div class="card">
@@ -254,6 +254,30 @@ async function load(){
     if(r4){ const parsed = JSON.parse(r4.value); if(parsed.usd) rates.usd = parsed.usd; if(parsed.eur) rates.eur = parsed.eur; if(typeof parsed.marginPct === 'number') rates.marginPct = parsed.marginPct; }
   }catch(e){ /* keep defaults */ }
 
+  const hasLocalData = assets.length > 0 || startingCash > 0;
+  const isHosted = location.protocol === 'http:' || location.protocol === 'https:';
+  console.log('[portfel-debug] hasLocalData:', hasLocalData, 'isHosted:', isHosted, 'protocol:', location.protocol);
+  if(!hasLocalData && isHosted){
+    console.log('[portfel-debug] próbuję pobrać ./portfel-dane.json ...');
+    try{
+      const res = await fetch('./portfel-dane.json', { cache: 'no-store' });
+      console.log('[portfel-debug] fetch status:', res.status, res.ok);
+      if(res.ok){
+        const data = await res.json();
+        console.log('[portfel-debug] wczytany JSON:', data);
+        if(Array.isArray(data.assets)) assets = data.assets;
+        if(typeof data.buyAmount === 'number') buyAmount = data.buyAmount;
+        if(typeof data.startingCash === 'number') startingCash = data.startingCash;
+        if(data.rates){
+          if(typeof data.rates.usd === 'number') rates.usd = data.rates.usd;
+          if(typeof data.rates.eur === 'number') rates.eur = data.rates.eur;
+          if(typeof data.rates.marginPct === 'number') rates.marginPct = data.rates.marginPct;
+        }
+        saveAssets(); saveBuyAmount_raw(buyAmount); saveCash_raw(startingCash); saveRates_raw(rates);
+      }
+    }catch(e){ console.log('[portfel-debug] błąd przy pobieraniu json:', e && e.message ? e.message : e); }
+  }
+
   document.getElementById('f-buy').value = buyAmount || '';
   document.getElementById('f-cash').value = startingCash || '';
   document.getElementById('f-usd').value = rates.usd;
@@ -261,6 +285,10 @@ async function load(){
   document.getElementById('f-margin').value = rates.marginPct;
   render();
 }
+
+async function saveBuyAmount_raw(v){ try{ await store.set('portfel-buy-v3', String(v)); }catch(e){} }
+async function saveCash_raw(v){ try{ await store.set('portfel-cash-v3', String(v)); }catch(e){} }
+async function saveRates_raw(r){ try{ await store.set('portfel-rates-v3', JSON.stringify(r)); }catch(e){} }
 
 async function saveAssets(){
   try{ await store.set('portfel-assets-v3', JSON.stringify(assets)); }catch(e){ console.error(e); }
