@@ -271,7 +271,7 @@ function scheduleRender(){
   }, 2000);
 }
 
-function toggleLive(){
+async function toggleLive(){
   const btn = document.getElementById('live-btn');
   const statusEl = document.getElementById('finnhub-status');
   if(liveSocket){
@@ -287,9 +287,19 @@ function toggleLive(){
     statusEl.style.color = '#C1543C';
     return;
   }
-  const tickers = [...new Set(assets.filter(a => a.usTicker).map(a => a.usTicker))];
-  if(tickers.length === 0){
+  const allTickers = [...new Set(assets.filter(a => a.usTicker).map(a => a.usTicker))];
+  if(allTickers.length === 0){
     statusEl.textContent = 'Żadna pozycja nie ma ustawionego "Ticker (US)".';
+    statusEl.style.color = '#C1543C';
+    return;
+  }
+  statusEl.textContent = 'Sprawdzam tickery przed uruchomieniem strumienia...';
+  statusEl.style.color = '#8B968E';
+  await refreshAllPrices();
+  const tickers = [...new Set(assets.filter(a => a.usTicker && a.liveStatus === 'ok').map(a => a.usTicker))];
+  const skipped = allTickers.filter(t => !tickers.includes(t));
+  if(tickers.length === 0){
+    statusEl.textContent = 'Żaden z podanych tickerów nie zwrócił poprawnej ceny — sprawdź pisownię.';
     statusEl.style.color = '#C1543C';
     return;
   }
@@ -298,7 +308,7 @@ function toggleLive(){
     liveSocket.onopen = function(){
       tickers.forEach(function(t){ liveSocket.send(JSON.stringify({type:'subscribe', symbol:t})); });
       btn.textContent = 'Wyłącz aktualizację na żywo';
-      statusEl.textContent = 'Live aktywne (' + tickers.length + ' tickerów) — ceny aktualizują się na bieżąco w godzinach sesji.';
+      statusEl.textContent = 'Live aktywne (' + tickers.length + ' tickerów)' + (skipped.length ? '. Pominięto (błędny ticker): ' + skipped.join(', ') : '') + '.';
       statusEl.style.color = '#4FA98C';
     };
     liveSocket.onmessage = function(event){
@@ -435,7 +445,8 @@ function addAsset(){
     customRate: null,
     usTicker: null,
     prevPrice: null,
-    flashDir: null
+    flashDir: null,
+    liveStatus: null
   });
   document.getElementById('f-name').value='';
   document.getElementById('f-qty').value='';
@@ -487,11 +498,15 @@ function fmt(n){
   return sign + s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 function renderPriceCell(a, i){
-  if(a.usTicker){
+  if(a.usTicker && a.liveStatus === 'ok'){
     const cls = a.flashDir === 'up' ? 'flash-up' : (a.flashDir === 'down' ? 'flash-down' : '');
     const display = a.curPrice.toFixed(2);
     a.flashDir = null;
     return '<span class="live-price ' + cls + '">' + display + '</span><span class="live-tag">LIVE</span>';
+  }
+  if(a.usTicker && a.liveStatus === 'error'){
+    return '<input class="cell-input" type="number" step="0.01" value="' + a.curPrice + '" onchange="updateField(' + i + ',\'curPrice\',this.value)" style="border-color:#C1543C;">'
+      + '<div class="sub-value warn" style="text-align:right;">nie znaleziono "' + escapeHtml(a.usTicker) + '"</div>';
   }
   return '<input class="cell-input" type="number" step="0.01" value="' + a.curPrice + '" onchange="updateField(' + i + ',\'curPrice\',this.value)">';
 }
@@ -708,11 +723,14 @@ async function refreshAllPrices(){
         else if(data.c < old) assets[i].flashDir = 'down';
         assets[i].prevPrice = old;
         assets[i].curPrice = data.c;
+        assets[i].liveStatus = 'ok';
         okCount++;
       } else {
+        assets[i].liveStatus = 'error';
         failCount++;
       }
     }catch(e){
+      assets[i].liveStatus = 'error';
       failCount++;
     }
   }
