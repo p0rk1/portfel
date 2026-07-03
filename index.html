@@ -163,8 +163,9 @@
         <label>Finnhub API key (dla live cen akcji z USA)</label>
         <input id="f-finnhub-key" type="text" placeholder="wklej swój klucz" onchange="saveFinnhubKey();">
         <button onclick="refreshAllPrices()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);width:100%;margin-top:8px;">Aktualizuj ceny (spółki z USA)</button>
+        <button id="live-btn" onclick="toggleLive()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);width:100%;margin-top:8px;">Włącz aktualizację na żywo</button>
         <div id="finnhub-status" class="hint"></div>
-        <div class="hint">Działa tylko dla pozycji notowanych na giełdach USA (np. AAPL, BA, META). Spółki z GPW, LSE, XETRA itd. trzeba nadal aktualizować ręcznie. Ustaw ticker giełdowy w kolumnie "Ticker (US)" w tabeli — jeśli puste, pozycja jest pomijana.</div>
+        <div class="hint">Działa tylko dla pozycji notowanych na giełdach USA (np. AAPL, BA, META). Spółki z GPW, LSE, XETRA itd. trzeba nadal aktualizować ręcznie. Ustaw ticker giełdowy w kolumnie "Ticker (US)" w tabeli — jeśli puste, pozycja jest pomijana. "Aktualizacja na żywo" streamuje ceny przez WebSocket, tak jak TradingView — ale tylko w godzinach sesji nowojorskiej giełdy (poza sesją po prostu nic nie przyjdzie, to normalne). Wyłącza się po zamknięciu karty przeglądarki.</div>
       </div>
     </div>
 
@@ -247,6 +248,76 @@ let buyAmount = 0;
 let startingCash = 0;
 let rates = { usd: 3.7568, eur: 4.2905, marginPct: 0.5 };
 let finnhubKey = '';
+let liveSocket = null;
+let renderScheduled = false;
+
+function scheduleRender(){
+  if(renderScheduled) return;
+  renderScheduled = true;
+  setTimeout(function(){
+    renderScheduled = false;
+    saveAssets();
+    render();
+  }, 2000);
+}
+
+function toggleLive(){
+  const btn = document.getElementById('live-btn');
+  const statusEl = document.getElementById('finnhub-status');
+  if(liveSocket){
+    liveSocket.close();
+    liveSocket = null;
+    btn.textContent = 'Włącz aktualizację na żywo';
+    statusEl.textContent = 'Aktualizacja na żywo wyłączona.';
+    statusEl.style.color = '#8B968E';
+    return;
+  }
+  if(!finnhubKey){
+    statusEl.textContent = 'Wklej najpierw swój Finnhub API key powyżej.';
+    statusEl.style.color = '#C1543C';
+    return;
+  }
+  const tickers = [...new Set(assets.filter(a => a.usTicker).map(a => a.usTicker))];
+  if(tickers.length === 0){
+    statusEl.textContent = 'Żadna pozycja nie ma ustawionego "Ticker (US)".';
+    statusEl.style.color = '#C1543C';
+    return;
+  }
+  try{
+    liveSocket = new WebSocket('wss://ws.finnhub.io?token=' + encodeURIComponent(finnhubKey));
+    liveSocket.onopen = function(){
+      tickers.forEach(function(t){ liveSocket.send(JSON.stringify({type:'subscribe', symbol:t})); });
+      btn.textContent = 'Wyłącz aktualizację na żywo';
+      statusEl.textContent = 'Live aktywne (' + tickers.length + ' tickerów) — ceny aktualizują się na bieżąco w godzinach sesji.';
+      statusEl.style.color = '#4FA98C';
+    };
+    liveSocket.onmessage = function(event){
+      try{
+        const msg = JSON.parse(event.data);
+        if(msg.type === 'trade' && Array.isArray(msg.data)){
+          let changed = false;
+          msg.data.forEach(function(t){
+            assets.forEach(function(a){
+              if(a.usTicker === t.s){ a.curPrice = t.p; changed = true; }
+            });
+          });
+          if(changed) scheduleRender();
+        }
+      }catch(e){ /* pomiń niepoprawną wiadomość */ }
+    };
+    liveSocket.onerror = function(){
+      statusEl.textContent = 'Błąd połączenia live (sprawdź klucz API).';
+      statusEl.style.color = '#C1543C';
+    };
+    liveSocket.onclose = function(){
+      liveSocket = null;
+      btn.textContent = 'Włącz aktualizację na żywo';
+    };
+  }catch(e){
+    statusEl.textContent = 'Nie udało się połączyć.';
+    statusEl.style.color = '#C1543C';
+  }
+}
 
 async function load(){
   try{
