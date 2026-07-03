@@ -1,0 +1,147 @@
+{
+  "assets": [
+    {
+      "name": "Alphabet $GOOGL",
+      "qty": 0.1838,
+      "buyPrice": 371.38,
+      "currency": "USD",
+      "curPrice": 371.38,
+      "target": 0
+    },
+    {
+      "name": "Boeing $BA",
+      "qty": 0.3695,
+      "buyPrice": 227.45,
+      "currency": "USD",
+      "curPrice": 227.45,
+      "target": 0
+    },
+    {
+      "name": "CD Projekt $CDR",
+      "qty": 1.308,
+      "buyPrice": 244.64,
+      "currency": "PLN",
+      "curPrice": 244.64,
+      "target": 0
+    },
+    {
+      "name": "CoreWeave $CRWV",
+      "qty": 0.5313,
+      "buyPrice": 103.23,
+      "currency": "USD",
+      "curPrice": 103.23,
+      "target": 0
+    },
+    {
+      "name": "Corning $GLW",
+      "qty": 0.2599,
+      "buyPrice": 187.95,
+      "currency": "USD",
+      "curPrice": 187.95,
+      "target": 0
+    },
+    {
+      "name": "Dino $DNP",
+      "qty": 4.5963,
+      "buyPrice": 36.568,
+      "currency": "PLN",
+      "curPrice": 36.568,
+      "target": 0
+    },
+    {
+      "name": "Industrial Metals $DBB",
+      "qty": 4.3919,
+      "buyPrice": 18.8204,
+      "currency": "USD",
+      "curPrice": 18.8204,
+      "target": 0
+    },
+    {
+      "name": "Infineon $IFX",
+      "qty": 0.3769,
+      "buyPrice": 77.84,
+      "currency": "EUR",
+      "curPrice": 77.84,
+      "target": 0
+    },
+    {
+      "name": "MercadoLibre $MELI",
+      "qty": 0.0224,
+      "buyPrice": 1841.94,
+      "currency": "USD",
+      "curPrice": 1841.94,
+      "target": 0
+    },
+    {
+      "name": "Meta $META",
+      "qty": 0.1245,
+      "buyPrice": 624.53,
+      "currency": "USD",
+      "curPrice": 624.53,
+      "target": 0
+    },
+    {
+      "name": "Micron $MU",
+      "qty": 0.0748,
+      "buyPrice": 415.18,
+      "currency": "USD",
+      "curPrice": 415.18,
+      "target": 0
+    },
+    {
+      "name": "Novo Nordisk $NVO",
+      "qty": 1.5608,
+      "buyPrice": 47.83,
+      "currency": "USD",
+      "curPrice": 47.83,
+      "target": 0
+    },
+    {
+      "name": "Rigetti Computing $RGTI",
+      "qty": 1.1295,
+      "buyPrice": 24.16,
+      "currency": "USD",
+      "curPrice": 24.16,
+      "target": 0
+    },
+    {
+      "name": "Samsung $SMSN",
+      "qty": 0.0169,
+      "buyPrice": 3570,
+      "currency": "USD",
+      "curPrice": 3570,
+      "target": 0
+    },
+    {
+      "name": "ServiceNow $NOW",
+      "qty": 0.6303,
+      "buyPrice": 108.81,
+      "currency": "USD",
+      "curPrice": 108.81,
+      "target": 0
+    },
+    {
+      "name": "SpaceX $SPCX",
+      "qty": 0.378,
+      "buyPrice": 175.97,
+      "currency": "USD",
+      "curPrice": 175.97,
+      "target": 2
+    },
+    {
+      "name": "USD BOND 20+yr",
+      "qty": 35.6712,
+      "buyPrice": 4.7043,
+      "currency": "USD",
+      "curPrice": 4.7043,
+      "target": 0
+    }
+  ],
+  "buyAmount": 0,
+  "startingCash": 4903,
+  "rates": {
+    "usd": 3.7568,
+    "eur": 4.2905,
+    "marginPct": 0.5
+  }
+}
