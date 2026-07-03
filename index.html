@@ -94,6 +94,16 @@
   .cash-warn{font-size:12px;color:var(--rust);margin-top:2px;}
   .empty{color:var(--muted);font-size:13px;padding:10px 0;}
   .hint{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
+
+  @keyframes flashGreen{0%{background-color:rgba(79,169,140,0.55);}100%{background-color:transparent;}}
+  @keyframes flashRed{0%{background-color:rgba(193,84,60,0.55);}100%{background-color:transparent;}}
+  .flash-up{animation:flashGreen 1.8s ease-out;}
+  .flash-down{animation:flashRed 1.8s ease-out;}
+  .live-price{
+    display:inline-block;width:92px;padding:5px 6px;text-align:right;border-radius:5px;
+    font-variant-numeric:tabular-nums;
+  }
+  .live-tag{font-size:9px;color:var(--teal);letter-spacing:0.05em;margin-left:4px;}
 </style>
 </head>
 <body>
@@ -298,7 +308,13 @@ function toggleLive(){
           let changed = false;
           msg.data.forEach(function(t){
             assets.forEach(function(a){
-              if(a.usTicker === t.s){ a.curPrice = t.p; changed = true; }
+              if(a.usTicker === t.s && t.p !== a.curPrice){
+                if(t.p > a.curPrice) a.flashDir = 'up';
+                else if(t.p < a.curPrice) a.flashDir = 'down';
+                a.prevPrice = a.curPrice;
+                a.curPrice = t.p;
+                changed = true;
+              }
             });
           });
           if(changed) scheduleRender();
@@ -417,7 +433,9 @@ function addAsset(){
     curPrice: isNaN(curPrice) ? buyPrice : curPrice,
     target: isNaN(target) ? 0 : target,
     customRate: null,
-    usTicker: null
+    usTicker: null,
+    prevPrice: null,
+    flashDir: null
   });
   document.getElementById('f-name').value='';
   document.getElementById('f-qty').value='';
@@ -468,6 +486,16 @@ function fmt(n){
   const s = Math.abs(rounded).toString();
   return sign + s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
+function renderPriceCell(a, i){
+  if(a.usTicker){
+    const cls = a.flashDir === 'up' ? 'flash-up' : (a.flashDir === 'down' ? 'flash-down' : '');
+    const display = a.curPrice.toFixed(2);
+    a.flashDir = null;
+    return '<span class="live-price ' + cls + '">' + display + '</span><span class="live-tag">LIVE</span>';
+  }
+  return '<input class="cell-input" type="number" step="0.01" value="' + a.curPrice + '" onchange="updateField(' + i + ',\'curPrice\',this.value)">';
+}
+
 function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 function render(){
@@ -602,7 +630,7 @@ function renderInner(){
         </select>
       </td>
       <td class="num"><input class="cell-input" type="number" step="0.0001" value="${a.rate.toFixed(4)}" ${a.currency==='PLN'?'disabled':''} onchange="updateField(${i},'customRate',this.value)"></td>
-      <td class="num"><input class="cell-input" type="number" step="0.01" value="${a.curPrice}" onchange="updateField(${i},'curPrice',this.value)"></td>
+      <td class="num">${renderPriceCell(a, i)}</td>
       <td><input class="cell-input" type="text" style="width:64px;text-align:left;padding:5px 6px;" value="${a.usTicker || ''}" placeholder="np. AAPL" onchange="updateField(${i},'usTicker',this.value)"></td>
       <td class="num">${fmt(a.cost)}</td>
       <td class="num">
@@ -675,6 +703,10 @@ async function refreshAllPrices(){
       if(!res.ok) throw new Error('status ' + res.status);
       const data = await res.json();
       if(typeof data.c === 'number' && data.c > 0){
+        const old = assets[i].curPrice;
+        if(data.c > old) assets[i].flashDir = 'up';
+        else if(data.c < old) assets[i].flashDir = 'down';
+        assets[i].prevPrice = old;
         assets[i].curPrice = data.c;
         okCount++;
       } else {
