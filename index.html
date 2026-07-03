@@ -62,8 +62,11 @@
   .legend-name{flex:1;}
   .legend-pct{color:var(--muted);}
 
-  .table-scroll{overflow-x:auto;}
+  .table-scroll{overflow-x:auto;position:relative;}
+  .table-scroll::after{content:'';position:absolute;top:0;right:0;bottom:0;width:20px;background:linear-gradient(to right, transparent, var(--surface));pointer-events:none;}
   table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px;min-width:1020px;}
+  th:first-child, td:first-child{position:sticky;left:0;background:var(--surface);z-index:2;}
+  th:first-child{background:var(--surface);}
   th{
     text-align:left;color:var(--muted);font-weight:500;font-size:10.5px;
     text-transform:uppercase;letter-spacing:0.05em;padding:6px 8px;border-bottom:1px solid var(--line);
@@ -95,6 +98,16 @@
   .empty{color:var(--muted);font-size:13px;padding:10px 0;}
   .hint{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
 
+  @media (max-width:760px){
+    body{padding:18px 12px 60px;}
+    button{min-height:40px;}
+    input,select{min-height:38px;}
+    .cell-input{min-height:34px;}
+    .summary-item .v{font-size:16px;}
+    h1{font-size:22px;}
+    .card{padding:14px;}
+  }
+
   @keyframes flashGreen{0%{background-color:rgba(79,169,140,0.55);}100%{background-color:transparent;}}
   @keyframes flashRed{0%{background-color:rgba(193,84,60,0.55);}100%{background-color:transparent;}}
   .flash-up{animation:flashGreen 1.8s ease-out;}
@@ -110,6 +123,7 @@
 <div class="wrap">
   <h1>Portfel — gotówka, waluty i struktura</h1>
   <div class="sub">Wpłać kapitał, dodawaj pozycje w PLN/USD/EUR — saldo i wykres liczą się same.</div>
+  <div id="unlock-area" style="margin-bottom:20px;"></div>
 
   <div class="grid">
     <div>
@@ -259,6 +273,24 @@ let startingCash = 0;
 let rates = { usd: 3.7568, eur: 4.2905, marginPct: 0.5 };
 let finnhubKey = '';
 let liveSocket = null;
+let unlocked = false;
+const SECRET_PHRASE = '1969';
+
+function checkUnlock(value){
+  if(value === SECRET_PHRASE){
+    unlocked = true;
+    render();
+  }
+}
+
+function lockAgain(){
+  unlocked = false;
+  render();
+}
+
+function mask(text){
+  return unlocked ? text : '•••';
+}
 let renderScheduled = false;
 
 function scheduleRender(){
@@ -446,7 +478,8 @@ function addAsset(){
     usTicker: null,
     prevPrice: null,
     flashDir: null,
-    liveStatus: null
+    liveStatus: null,
+    invertPL: false
   });
   document.getElementById('f-name').value='';
   document.getElementById('f-qty').value='';
@@ -470,6 +503,8 @@ function updateField(i, field, value){
     assets[i].customRate = (isNaN(v) || v <= 0) ? null : v;
   } else if(field === 'usTicker'){
     assets[i].usTicker = value.trim().toUpperCase() || null;
+  } else if(field === 'invertPL'){
+    assets[i].invertPL = !!value;
   } else {
     const v = parseFloat(value);
     assets[i][field] = isNaN(v) ? 0 : v;
@@ -519,6 +554,13 @@ function render(){
 }
 
 function renderInner(){
+  const unlockArea = document.getElementById('unlock-area');
+  if(unlocked){
+    unlockArea.innerHTML = '<div class="hint">🔓 Szczegóły widoczne. <a href="#" onclick="lockAgain();return false;" style="color:var(--gold);">Zablokuj ponownie</a></div>';
+  } else {
+    unlockArea.innerHTML = '<input id="f-unlock" type="password" class="cell-input" style="width:100%;text-align:left;" placeholder="Wpisz frazę, aby zobaczyć szczegóły" oninput="checkUnlock(this.value)">';
+  }
+
   const rows = assets.map(a=>{
     const rate = rateFor(a);
     const cost = a.qty * a.buyPrice * rate;
@@ -534,13 +576,16 @@ function renderInner(){
   const portfolioValue = cashLeft + totalCurrent;
   const totalPL = totalCurrent - totalCost;
 
-  document.getElementById('sum-cash-in').textContent = fmt(startingCash) + ' PLN';
+  document.getElementById('sum-cash-in').textContent = unlocked ? (fmt(startingCash) + ' PLN') : '•••';
   const cashLeftEl = document.getElementById('sum-cash-left');
-  cashLeftEl.textContent = fmt(cashLeft) + ' PLN';
-  cashLeftEl.style.color = cashLeft < 0 ? '#C1543C' : '#E8E4DA';
-  document.getElementById('sum-current').textContent = fmt(totalCurrent) + ' PLN';
+  cashLeftEl.textContent = unlocked ? (fmt(cashLeft) + ' PLN') : '•••';
+  cashLeftEl.style.color = unlocked ? (cashLeft < 0 ? '#C1543C' : '#E8E4DA') : '#8B968E';
+  document.getElementById('sum-current').textContent = unlocked ? (fmt(totalCurrent) + ' PLN') : '•••';
   const totalEl = document.getElementById('sum-total');
-  totalEl.textContent = fmt(portfolioValue) + ' PLN' + (totalCost>0 ? ' (' + (totalPL>=0?'+':'') + fmt(totalPL) + ' PLN)' : '');
+  const totalPLPctDisplay = totalCost>0 ? (totalPL>=0?'+':'') + (totalPL/totalCost*100).toFixed(1) + '%' : '—';
+  totalEl.textContent = unlocked
+    ? (fmt(portfolioValue) + ' PLN' + (totalCost>0 ? ' (' + (totalPL>=0?'+':'') + fmt(totalPL) + ' PLN)' : ''))
+    : ('Wynik: ' + totalPLPctDisplay);
   totalEl.style.color = totalPL >= 0 ? '#4FA98C' : '#C1543C';
 
   const cashWarnEl = document.getElementById('cash-warn');
@@ -631,12 +676,35 @@ function renderInner(){
         sellShares = priceInPln > 0 ? Math.abs(diff)/priceInPln : null;
       }
     }
-    const plColor = a.pl >= 0 ? 'ok' : 'warn';
+    const displayPl = a.invertPL ? -a.pl : a.pl;
+    const displayPlPct = a.invertPL ? -a.plPct : a.plPct;
+    const plColor = displayPl >= 0 ? 'ok' : 'warn';
     const row = document.createElement('tr');
+    const qtyCell = unlocked
+      ? `<input class="cell-input" type="number" step="0.0001" value="${a.qty}" onchange="updateField(${i},'qty',this.value)">`
+      : '<span class="live-price">•••</span>';
+    const buyPriceCell = unlocked
+      ? `<input class="cell-input" type="number" step="0.01" value="${a.buyPrice}" onchange="updateField(${i},'buyPrice',this.value)">`
+      : '<span class="live-price">•••</span>';
+    const kursCell = unlocked
+      ? `<input class="cell-input" type="number" step="0.0001" value="${a.rate.toFixed(4)}" ${a.currency==='PLN'?'disabled':''} onchange="updateField(${i},'customRate',this.value)">`
+      : '<span class="live-price">•••</span>';
+    const priceCell = unlocked ? renderPriceCell(a, i) : '<span class="live-price">•••</span>';
+    const costCell = unlocked ? fmt(a.cost) : '•••';
+    const valueChangeCell = unlocked
+      ? `${fmt(a.current)} PLN<br><span class="sub-value ${plColor}">${displayPl>=0?'+':''}${fmt(displayPl)} PLN (${displayPlPct>=0?'+':''}${displayPlPct.toFixed(1)}%)</span>${a.invertPL?'<span class="sub-value" style="color:var(--muted);"> (odwrócone)</span>':''}`
+      : `<span class="sub-value ${plColor}">${displayPlPct>=0?'+':''}${displayPlPct.toFixed(1)}%</span>${a.invertPL?'<span class="sub-value" style="color:var(--muted);"> (odwrócone)</span>':''}`;
+    const rebalansCell = a.target
+      ? (achieved
+          ? '<span class="ok">cel osiągnięty</span>'
+          : (unlocked
+              ? (diff > 0 ? fmt(diff)+' PLN'+(entries!==null?' ('+entries+'x)':'') : '<span class="warn">sprzedaj ~'+fmt(Math.abs(diff))+' PLN'+(sellShares!==null?' (~'+sellShares.toFixed(2)+' szt.)':'')+'</span>')
+              : (diff > 0 ? '<span class="ok">dokup</span>' : '<span class="warn">sprzedaj</span>')))
+      : '—';
     row.innerHTML = `
-      <td class="name-cell"><div class="dot" style="background:${color}"></div>${escapeHtml(a.name)}</td>
-      <td class="num"><input class="cell-input" type="number" step="0.0001" value="${a.qty}" onchange="updateField(${i},'qty',this.value)"></td>
-      <td class="num"><input class="cell-input" type="number" step="0.01" value="${a.buyPrice}" onchange="updateField(${i},'buyPrice',this.value)"></td>
+      <td class="name-cell"><div class="dot" style="background:${color}"></div>${escapeHtml(a.name)}<input type="checkbox" title="Obligacja / odwrócona zależność (cena w dół = zysk)" ${a.invertPL?'checked':''} onchange="updateField(${i},'invertPL',this.checked)" style="margin-left:6px;width:14px;height:14px;"></td>
+      <td class="num">${qtyCell}</td>
+      <td class="num">${buyPriceCell}</td>
       <td>
         <select class="cell-select" onchange="updateField(${i},'currency',this.value)">
           <option value="PLN" ${a.currency==='PLN'?'selected':''}>PLN</option>
@@ -644,17 +712,14 @@ function renderInner(){
           <option value="EUR" ${a.currency==='EUR'?'selected':''}>EUR</option>
         </select>
       </td>
-      <td class="num"><input class="cell-input" type="number" step="0.0001" value="${a.rate.toFixed(4)}" ${a.currency==='PLN'?'disabled':''} onchange="updateField(${i},'customRate',this.value)"></td>
-      <td class="num">${renderPriceCell(a, i)}</td>
+      <td class="num">${kursCell}</td>
+      <td class="num">${priceCell}</td>
       <td><input class="cell-input" type="text" style="width:64px;text-align:left;padding:5px 6px;" value="${a.usTicker || ''}" placeholder="np. AAPL" onchange="updateField(${i},'usTicker',this.value)"></td>
-      <td class="num">${fmt(a.cost)}</td>
-      <td class="num">
-        ${fmt(a.current)} PLN<br>
-        <span class="sub-value ${plColor}">${a.pl>=0?'+':''}${fmt(a.pl)} PLN (${a.plPct>=0?'+':''}${a.plPct.toFixed(1)}%)</span>
-      </td>
+      <td class="num">${costCell}</td>
+      <td class="num">${valueChangeCell}</td>
       <td class="num">${pct.toFixed(1)}%</td>
       <td class="num"><input class="cell-input" type="number" step="0.1" value="${a.target}" onchange="updateField(${i},'target',this.value)"></td>
-      <td class="num">${a.target ? (achieved ? '<span class="ok">cel osiągnięty</span>' : (diff > 0 ? fmt(diff)+' PLN'+(entries!==null?' ('+entries+'x)':'') : '<span class="warn">sprzedaj ~'+fmt(Math.abs(diff))+' PLN'+(sellShares!==null?' (~'+sellShares.toFixed(2)+' szt.)':'')+'</span>')) : '—'}</td>
+      <td class="num">${rebalansCell}</td>
       <td><button class="btn-del" onclick="removeAsset(${i})">usuń</button></td>
     `;
     tbody.appendChild(row);
