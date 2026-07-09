@@ -5,120 +5,180 @@
       "qty": 0.1838,
       "buyPrice": 371.38,
       "currency": "USD",
-      "curPrice": 371.38,
-      "target": 0
+      "curPrice": 353.19,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6627,
+      "usTicker": "GOOGL",
+      "invertPL": false
     },
     {
       "name": "Boeing $BA",
       "qty": 0.3695,
-      "buyPrice": 227.45,
+      "buyPrice": 227.43,
       "currency": "USD",
-      "curPrice": 227.45,
-      "target": 0
+      "curPrice": 223.23,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.606,
+      "usTicker": "BA",
+      "invertPL": false
     },
     {
       "name": "CD Projekt $CDR",
-      "qty": 1.308,
-      "buyPrice": 244.64,
+      "qty": 1.068,
+      "buyPrice": 243.10,
       "currency": "PLN",
-      "curPrice": 244.64,
-      "target": 0
+      "curPrice": 232.40,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 1,
+      "usTicker": null,
+      "invertPL": false
     },
     {
       "name": "CoreWeave $CRWV",
-      "qty": 0.5313,
-      "buyPrice": 103.23,
+      "qty": 0.7634,
+      "buyPrice": 98.25,
       "currency": "USD",
-      "curPrice": 103.23,
-      "target": 0
+      "curPrice": 92.80,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6766,
+      "usTicker": "CRWV",
+      "invertPL": false
     },
     {
       "name": "Corning $GLW",
       "qty": 0.2599,
       "buyPrice": 187.95,
       "currency": "USD",
-      "curPrice": 187.95,
-      "target": 0
+      "curPrice": 198.56,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6841,
+      "usTicker": "GLW",
+      "invertPL": false
     },
     {
       "name": "Dino $DNP",
       "qty": 4.5963,
       "buyPrice": 36.568,
       "currency": "PLN",
-      "curPrice": 36.568,
-      "target": 0
+      "curPrice": 27.91,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 1,
+      "usTicker": null,
+      "invertPL": false
     },
     {
       "name": "Industrial Metals $DBB",
       "qty": 4.3919,
       "buyPrice": 18.8204,
       "currency": "USD",
-      "curPrice": 18.8204,
-      "target": 0
+      "curPrice": 19.04,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6285,
+      "usTicker": null,
+      "invertPL": false
     },
     {
       "name": "Infineon $IFX",
       "qty": 0.3769,
       "buyPrice": 77.84,
       "currency": "EUR",
-      "curPrice": 77.84,
-      "target": 0
+      "curPrice": 73.31,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 4.2606,
+      "usTicker": null,
+      "invertPL": false
     },
     {
       "name": "MercadoLibre $MELI",
-      "qty": 0.0224,
-      "buyPrice": 1841.94,
+      "qty": 0.0368,
+      "buyPrice": 1827.62,
       "currency": "USD",
-      "curPrice": 1841.94,
-      "target": 0
+      "curPrice": 1781.37,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6969,
+      "usTicker": "MELI",
+      "invertPL": false
     },
     {
       "name": "Meta $META",
       "qty": 0.1245,
       "buyPrice": 624.53,
       "currency": "USD",
-      "curPrice": 624.53,
-      "target": 0
+      "curPrice": 592.59,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6408,
+      "usTicker": "META",
+      "invertPL": false
     },
     {
       "name": "Micron $MU",
-      "qty": 0.0748,
-      "buyPrice": 415.18,
+      "qty": 0.1098,
+      "buyPrice": 582.86,
       "currency": "USD",
-      "curPrice": 415.18,
-      "target": 0
+      "curPrice": 1016.26,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.7225,
+      "usTicker": "MU",
+      "invertPL": false
     },
     {
       "name": "Novo Nordisk $NVO",
       "qty": 1.5608,
       "buyPrice": 47.83,
       "currency": "USD",
-      "curPrice": 47.83,
-      "target": 0
+      "curPrice": 49.29,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6112,
+      "usTicker": "NVO",
+      "invertPL": false
     },
     {
       "name": "Rigetti Computing $RGTI",
       "qty": 1.1295,
       "buyPrice": 24.16,
       "currency": "USD",
-      "curPrice": 24.16,
-      "target": 0
+      "curPrice": 16.92,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.671,
+      "usTicker": "RGTI",
+      "invertPL": false
     },
     {
       "name": "Samsung $SMSN",
       "qty": 0.0169,
       "buyPrice": 3570,
       "currency": "USD",
-      "curPrice": 3570,
-      "target": 0
+      "curPrice": 4878.00,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.660,
+      "usTicker": null,
+      "invertPL": false
     },
     {
       "name": "ServiceNow $NOW",
       "qty": 0.6303,
       "buyPrice": 108.81,
       "currency": "USD",
-      "curPrice": 108.81,
-      "target": 0
+      "curPrice": 106.57,
+      "target": 0,
+      "customRate": null,
+      "buyRate": 3.6428,
+      "usTicker": "NOW",
+      "invertPL": false
     },
     {
       "name": "SpaceX $SPCX",
@@ -126,7 +186,11 @@
       "buyPrice": 175.97,
       "currency": "USD",
       "curPrice": 175.97,
-      "target": 2
+      "target": 2,
+      "customRate": null,
+      "buyRate": null,
+      "usTicker": "SPCX",
+      "invertPL": false
     },
     {
       "name": "USD BOND 20+yr",
@@ -134,7 +198,11 @@
       "buyPrice": 4.7043,
       "currency": "USD",
       "curPrice": 4.7043,
-      "target": 0
+      "target": 0,
+      "customRate": null,
+      "buyRate": null,
+      "usTicker": null,
+      "invertPL": true
     }
   ],
   "buyAmount": 0,

@@ -112,7 +112,8 @@
   .cell-input:focus,.cell-select:focus{outline:none;border-color:var(--gold);}
   .sub-value{font-size:11px;}
 
-  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;}
+  .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:14px;}
+  @media (max-width:900px){.summary-grid{grid-template-columns:1fr 1fr 1fr;}}
   @media (max-width:680px){.summary-grid{grid-template-columns:1fr 1fr;}}
   .summary-item .lbl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-ui);}
   .summary-item .v{font-family:var(--font-num);font-weight:600;font-size:19px;margin-top:3px;letter-spacing:-0.01em;}
@@ -214,6 +215,28 @@
           <input id="f-target" type="number" min="0" max="100" step="0.1" placeholder="np. 15">
         </div>
         <button class="btn-add" onclick="addAsset()">Dodaj pozycję</button>
+        <div id="add-status" class="hint"></div>
+      </div>
+
+      <div class="card" id="sell-card" style="display:none;">
+        <div class="card-title">Sprzedaj: <span id="sell-name"></span></div>
+        <label>Ilość do sprzedania</label>
+        <input id="f-sell-qty" type="number" min="0" step="0.0001" oninput="updateSellPreview()">
+        <div class="row2">
+          <div>
+            <label>Cena sprzedaży</label>
+            <input id="f-sell-price" type="number" min="0" step="0.01" oninput="updateSellPreview()">
+          </div>
+          <div>
+            <label>Kurs sprzedaży</label>
+            <input id="f-sell-rate" type="number" min="0" step="0.0001" oninput="updateSellPreview()">
+          </div>
+        </div>
+        <div class="hint" id="sell-preview"></div>
+        <div class="row2" style="margin-top:10px;">
+          <button class="btn-secondary" onclick="closeSellPanel()">Anuluj</button>
+          <button class="btn-add" onclick="confirmSell()" style="margin-top:0;">Potwierdź sprzedaż</button>
+        </div>
       </div>
 
       <div class="card">
@@ -256,6 +279,10 @@
             <div class="lbl">Wartość portfela</div>
             <div class="v" id="sum-total">0 PLN</div>
           </div>
+          <div class="summary-item">
+            <div class="lbl">Zrealizowany zysk</div>
+            <div class="v" id="sum-realized">0 PLN</div>
+          </div>
         </div>
         <div id="cash-warn" class="cash-warn"></div>
         <div id="target-sum" style="font-size:12px;"></div>
@@ -289,6 +316,25 @@
         </div>
         <div class="hint">"Kurs zakupu" liczy koszt (zamrożony, nie zmienia się). "Kurs dziś" liczy aktualną wartość — nadpisz ręcznie, jeśli różni się od NBP.</div>
       </div>
+
+      <div class="card" id="history-card" style="display:none;">
+        <div class="card-title">Historia sprzedaży</div>
+        <div class="table-scroll">
+        <table style="min-width:600px;">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Spółka</th>
+              <th class="num">Ilość</th>
+              <th class="num">Cena sprzedaży</th>
+              <th class="num">Wpływ (PLN)</th>
+              <th class="num">Zysk/strata</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -313,11 +359,14 @@ const store = (typeof window.storage !== 'undefined' && window.storage) ? window
 const PALETTE = ['#C9A227','#4FA98C','#C1543C','#7C93B8','#B583A8','#9CB86B','#D18A4D','#5FA0A8','#A5714F','#8B8FC9'];
 const CASH_COLOR = '#3E4A50';
 let assets = [];
+let sellHistory = [];
+let sellIndex = null;
 let buyAmount = 0;
 let startingCash = 0;
 let rates = { usd: 3.7568, eur: 4.2905, marginPct: 0.5 };
 let finnhubKey = '';
 let selectedBroker = 'custom';
+let salesLog = [];
 
 const BROKERS = {
   xtb: {
@@ -515,6 +564,10 @@ async function load(){
     assets = r ? JSON.parse(r.value) : [];
   }catch(e){ assets = []; }
   try{
+    const rh = await store.get('portfel-sellhistory-v3');
+    sellHistory = rh ? JSON.parse(rh.value) : [];
+  }catch(e){ sellHistory = []; }
+  try{
     const r2 = await store.get('portfel-buy-v3');
     buyAmount = r2 ? parseFloat(r2.value) : 0;
   }catch(e){ buyAmount = 0; }
@@ -535,6 +588,7 @@ async function load(){
       if(res.ok){
         const data = await res.json();
         if(Array.isArray(data.assets)) assets = data.assets;
+        if(Array.isArray(data.sellHistory)) sellHistory = data.sellHistory;
         if(typeof data.buyAmount === 'number') buyAmount = data.buyAmount;
         if(typeof data.startingCash === 'number') startingCash = data.startingCash;
         if(data.rates){
@@ -542,7 +596,7 @@ async function load(){
           if(typeof data.rates.eur === 'number') rates.eur = data.rates.eur;
           if(typeof data.rates.marginPct === 'number') rates.marginPct = data.rates.marginPct;
         }
-        saveAssets(); saveBuyAmount_raw(buyAmount); saveCash_raw(startingCash); saveRates_raw(rates);
+        saveAssets(); saveSellHistory(); saveBuyAmount_raw(buyAmount); saveCash_raw(startingCash); saveRates_raw(rates);
       }
     }catch(e){ /* brak commitowanego json obok index.html, lub otwarte lokalnie — zostaje puste */ }
   }
@@ -577,6 +631,71 @@ async function saveRates_raw(r){ try{ await store.set('portfel-rates-v3', JSON.s
 async function saveAssets(){
   try{ await store.set('portfel-assets-v3', JSON.stringify(assets)); }catch(e){ console.error(e); }
 }
+async function saveSellHistory(){
+  try{ await store.set('portfel-sellhistory-v3', JSON.stringify(sellHistory)); }catch(e){ console.error(e); }
+}
+
+function openSellPanel(i){
+  sellIndex = i;
+  const a = assets[i];
+  document.getElementById('sell-name').textContent = a.name;
+  document.getElementById('f-sell-qty').value = a.qty;
+  document.getElementById('f-sell-qty').max = a.qty;
+  document.getElementById('f-sell-price').value = a.curPrice;
+  document.getElementById('f-sell-rate').value = rateFor(a).toFixed(4);
+  document.getElementById('sell-card').style.display = 'block';
+  updateSellPreview();
+  document.getElementById('sell-card').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function closeSellPanel(){
+  sellIndex = null;
+  document.getElementById('sell-card').style.display = 'none';
+}
+
+function updateSellPreview(){
+  if(sellIndex === null) return;
+  const a = assets[sellIndex];
+  const qty = parseFloat(document.getElementById('f-sell-qty').value) || 0;
+  const price = parseFloat(document.getElementById('f-sell-price').value) || 0;
+  const rate = a.currency === 'PLN' ? 1 : (parseFloat(document.getElementById('f-sell-rate').value) || rateFor(a));
+  const proceeds = qty * price * rate;
+  const buyRateUsed = a.currency === 'PLN' ? 1 : a.buyRate;
+  const costBasis = qty * a.buyPrice * buyRateUsed;
+  const pl = proceeds - costBasis;
+  const el = document.getElementById('sell-preview');
+  el.innerHTML = 'Wpływ: ' + fmt(proceeds) + ' PLN. Zysk/strata: <span class="' + (pl>=0?'ok':'warn') + '">' + (pl>=0?'+':'') + fmt(pl) + ' PLN</span>' + (qty > a.qty ? '<br><span class="warn">Nie masz tylu sztuk (max ' + a.qty + ').</span>' : '');
+}
+
+function confirmSell(){
+  if(sellIndex === null) return;
+  const a = assets[sellIndex];
+  const qty = parseFloat(document.getElementById('f-sell-qty').value);
+  const price = parseFloat(document.getElementById('f-sell-price').value);
+  const rate = a.currency === 'PLN' ? 1 : (parseFloat(document.getElementById('f-sell-rate').value) || rateFor(a));
+  if(isNaN(qty) || qty <= 0 || qty > a.qty + 1e-9 || isNaN(price) || price < 0){ return; }
+
+  const proceeds = qty * price * rate;
+  const buyRateUsed = a.currency === 'PLN' ? 1 : a.buyRate;
+  const costBasis = qty * a.buyPrice * buyRateUsed;
+  const realizedPL = proceeds - costBasis;
+
+  sellHistory.push({
+    date: new Date().toISOString(),
+    name: a.name,
+    qty, price, currency: a.currency,
+    proceeds, costBasis, realizedPL
+  });
+
+  a.qty -= qty;
+  if(a.qty < 1e-6){
+    assets.splice(sellIndex, 1);
+  }
+
+  saveAssets(); saveSellHistory();
+  closeSellPanel();
+  render();
+}
 async function saveBuyAmount(){
   buyAmount = parseFloat(document.getElementById('f-buy').value) || 0;
   try{ await store.set('portfel-buy-v3', String(buyAmount)); }catch(e){ console.error(e); }
@@ -609,20 +728,47 @@ function addAsset(){
   const currency = document.getElementById('f-currency').value;
   const curPriceRaw = document.getElementById('f-curprice').value;
   const curPrice = curPriceRaw === '' ? buyPrice : parseFloat(curPriceRaw);
-  const target = parseFloat(document.getElementById('f-target').value);
+  const targetRaw = document.getElementById('f-target').value;
+  const target = parseFloat(targetRaw);
   if(!name || isNaN(qty) || qty < 0 || isNaN(buyPrice) || buyPrice < 0){ return; }
-  assets.push({
-    name, qty, buyPrice, currency,
-    curPrice: isNaN(curPrice) ? buyPrice : curPrice,
-    target: isNaN(target) ? 0 : target,
-    customRate: null,
-    buyRate: rateFor({currency, customRate: null}),
-    usTicker: null,
-    prevPrice: null,
-    flashDir: null,
-    liveStatus: null,
-    invertPL: false
-  });
+
+  const newBuyRate = rateFor({currency, customRate: null});
+  const existingIndex = assets.findIndex(a =>
+    a.name.trim().toLowerCase() === name.toLowerCase() && a.currency === currency);
+  const statusEl = document.getElementById('add-status');
+
+  if(existingIndex >= 0){
+    const a = assets[existingIndex];
+    const oldBuyRate = a.currency === 'PLN' ? 1 : (a.buyRate || newBuyRate);
+    const oldCostPLN = a.qty * a.buyPrice * oldBuyRate;
+    const addedCostPLN = qty * buyPrice * (currency === 'PLN' ? 1 : newBuyRate);
+    const combinedQty = a.qty + qty;
+    const combinedBuyPrice = (a.qty * a.buyPrice + qty * buyPrice) / combinedQty;
+    a.qty = combinedQty;
+    a.buyPrice = combinedBuyPrice;
+    if(currency !== 'PLN'){
+      a.buyRate = (oldCostPLN + addedCostPLN) / (combinedQty * combinedBuyPrice);
+    }
+    if(curPriceRaw !== '' && !isNaN(curPrice)) a.curPrice = curPrice;
+    if(!isNaN(target) && target > 0) a.target = target;
+    statusEl.textContent = 'Doliczono do istniejącej pozycji "' + a.name + '" — nowa średnia cena zakupu: ' + combinedBuyPrice.toFixed(4) + '.';
+    statusEl.style.color = '#4FA98C';
+  } else {
+    assets.push({
+      name, qty, buyPrice, currency,
+      curPrice: isNaN(curPrice) ? buyPrice : curPrice,
+      target: isNaN(target) ? 0 : target,
+      customRate: null,
+      buyRate: newBuyRate,
+      usTicker: null,
+      prevPrice: null,
+      flashDir: null,
+      liveStatus: null,
+      invertPL: false
+    });
+    statusEl.textContent = 'Dodano nową pozycję.';
+    statusEl.style.color = '#8B968E';
+  }
   document.getElementById('f-name').value='';
   document.getElementById('f-qty').value='';
   document.getElementById('f-buyprice').value='';
@@ -633,6 +779,7 @@ function addAsset(){
 
 function removeAsset(i){
   assets.splice(i,1);
+  if(sellIndex !== null) closeSellPanel();
   saveAssets(); render();
 }
 
@@ -735,9 +882,15 @@ function renderInner(){
 
   const totalCost = rows.reduce((s,a)=>s+a.cost,0);
   const totalCurrent = rows.reduce((s,a)=>s+a.current,0);
-  const cashLeft = startingCash - totalCost;
+  const totalSellProceeds = sellHistory.reduce((s,t)=>s+t.proceeds,0);
+  const totalRealizedPL = sellHistory.reduce((s,t)=>s+t.realizedPL,0);
+  const cashLeft = startingCash - totalCost + totalRealizedPL;
   const portfolioValue = cashLeft + totalCurrent;
   const totalPL = totalCurrent - totalCost;
+
+  const realizedEl = document.getElementById('sum-realized');
+  realizedEl.textContent = unlocked ? ((totalRealizedPL>=0?'+':'') + fmt(totalRealizedPL) + ' PLN') : '•••';
+  realizedEl.style.color = unlocked ? (totalRealizedPL >= 0 ? '#4FA98C' : '#C1543C') : '#8B968E';
 
   document.getElementById('sum-cash-in').textContent = unlocked ? (fmt(startingCash) + ' PLN') : '•••';
   const cashLeftEl = document.getElementById('sum-cash-left');
@@ -763,6 +916,8 @@ function renderInner(){
   const chartArea = document.getElementById('chart-area');
   const emptyMsg = document.getElementById('empty-msg');
   const tableCard = document.getElementById('table-card');
+
+  renderHistory();
 
   if(!rows.length){
     chartArea.innerHTML = '';
@@ -896,10 +1051,31 @@ function renderInner(){
       <td class="num">${pct.toFixed(1)}%</td>
       <td class="num"><input class="cell-input" type="number" step="0.1" value="${a.target}" onchange="updateField(${i},'target',this.value)"></td>
       <td class="num">${rebalansCell}</td>
-      <td><button class="btn-del" onclick="removeAsset(${i})">usuń</button></td>
+      <td style="white-space:nowrap;"><button class="btn-del" style="color:var(--gold);" onclick="openSellPanel(${i})">sprzedaj</button> <button class="btn-del" onclick="removeAsset(${i})">usuń</button></td>
     `;
     tbody.appendChild(row);
   });
+}
+
+function renderHistory(){
+  const historyCard = document.getElementById('history-card');
+  const historyBody = document.getElementById('history-body');
+  if(sellHistory.length === 0){
+    historyCard.style.display = 'none';
+  } else {
+    historyCard.style.display = 'block';
+    historyBody.innerHTML = '';
+    [...sellHistory].reverse().forEach(t => {
+      const d = new Date(t.date);
+      const dateStr = String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0') + '.' + d.getFullYear();
+      const plColor = t.realizedPL >= 0 ? 'ok' : 'warn';
+      const tr = document.createElement('tr');
+      tr.innerHTML = unlocked
+        ? `<td>${dateStr}</td><td class="name-cell">${escapeHtml(t.name)}</td><td class="num">${t.qty}</td><td class="num">${t.price} ${t.currency}</td><td class="num">${fmt(t.proceeds)}</td><td class="num ${plColor}">${t.realizedPL>=0?'+':''}${fmt(t.realizedPL)} PLN</td>`
+        : `<td>${dateStr}</td><td class="name-cell">${escapeHtml(t.name)}</td><td class="num">•••</td><td class="num">•••</td><td class="num">•••</td><td class="num ${plColor}">${t.realizedPL>=0?'+':''}${((t.realizedPL/t.costBasis)*100).toFixed(1)}%</td>`;
+      historyBody.appendChild(tr);
+    });
+  }
 }
 
 async function refreshNbpRates(){
@@ -982,7 +1158,7 @@ async function refreshAllPrices(){
 }
 
 async function exportData(){
-  const payload = { assets, buyAmount, startingCash, rates };
+  const payload = { assets, buyAmount, startingCash, rates, sellHistory };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1001,6 +1177,7 @@ function importData(file){
     try{
       const data = JSON.parse(e.target.result);
       assets = Array.isArray(data.assets) ? data.assets : [];
+      sellHistory = Array.isArray(data.sellHistory) ? data.sellHistory : [];
       buyAmount = typeof data.buyAmount === 'number' ? data.buyAmount : 0;
       startingCash = typeof data.startingCash === 'number' ? data.startingCash : 0;
       if(data.rates){
@@ -1014,7 +1191,7 @@ function importData(file){
       document.getElementById('f-usd').value = rates.usd;
       document.getElementById('f-eur').value = rates.eur;
       document.getElementById('f-margin').value = rates.marginPct;
-      saveAssets(); saveBuyAmount(); saveCash(); saveRates();
+      saveAssets(); saveSellHistory(); saveBuyAmount(); saveCash(); saveRates();
       render();
     }catch(err){
       console.error('Import error:', err);
