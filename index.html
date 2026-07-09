@@ -86,7 +86,7 @@
 
   .table-scroll{overflow-x:auto;position:relative;}
   .table-scroll::after{content:'';position:absolute;top:0;right:0;bottom:0;width:20px;background:linear-gradient(to right, transparent, var(--surface));pointer-events:none;}
-  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px;min-width:1020px;}
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px;min-width:1140px;}
   th:first-child, td:first-child{position:sticky;left:0;background:var(--surface);z-index:2;}
   th:first-child{background:var(--surface);}
   th{
@@ -272,7 +272,8 @@
               <th class="num">Ilość</th>
               <th class="num">Cena zakupu</th>
               <th>Wal.</th>
-              <th class="num">Kurs</th>
+              <th class="num">Kurs zakupu</th>
+              <th class="num">Kurs dziś</th>
               <th class="num">Cena aktualna</th>
               <th>Ticker (US)</th>
               <th class="num">Koszt (PLN)</th>
@@ -286,7 +287,7 @@
           <tbody id="table-body"></tbody>
         </table>
         </div>
-        <div class="hint">Kolumna "Kurs" — nadpisz ręcznie, jeśli Twój realny kurs różni się od NBP.</div>
+        <div class="hint">"Kurs zakupu" liczy koszt (zamrożony, nie zmienia się). "Kurs dziś" liczy aktualną wartość — nadpisz ręcznie, jeśli różni się od NBP.</div>
       </div>
     </div>
   </div>
@@ -615,6 +616,7 @@ function addAsset(){
     curPrice: isNaN(curPrice) ? buyPrice : curPrice,
     target: isNaN(target) ? 0 : target,
     customRate: null,
+    buyRate: rateFor({currency, customRate: null}),
     usTicker: null,
     prevPrice: null,
     flashDir: null,
@@ -638,9 +640,13 @@ function updateField(i, field, value){
   if(field === 'currency'){
     assets[i].currency = value;
     assets[i].customRate = null;
+    assets[i].buyRate = rateFor({currency: value, customRate: null});
   } else if(field === 'customRate'){
     const v = parseFloat(value);
     assets[i].customRate = (isNaN(v) || v <= 0) ? null : v;
+  } else if(field === 'buyRate'){
+    const v = parseFloat(value);
+    assets[i].buyRate = (isNaN(v) || v <= 0) ? assets[i].buyRate : v;
   } else if(field === 'usTicker'){
     assets[i].usTicker = value.trim().toUpperCase() || null;
   } else if(field === 'invertPL'){
@@ -711,14 +717,21 @@ function renderInner(){
     buyInput.type = 'password'; buyInput.readOnly = true; buyInput.value = buyAmount ? '000' : '';
   }
 
+  let needsMigrationSave = false;
   const rows = assets.map(a=>{
     const rate = rateFor(a);
-    const cost = a.qty * a.buyPrice * rate;
+    if(!a.buyRate || a.buyRate <= 0){
+      a.buyRate = a.currency === 'PLN' ? 1 : rate;
+      needsMigrationSave = true;
+    }
+    const buyRate = a.currency === 'PLN' ? 1 : a.buyRate;
+    const cost = a.qty * a.buyPrice * buyRate;
     const current = a.qty * a.curPrice * rate;
     const pl = current - cost;
     const plPct = cost>0 ? (pl/cost*100) : 0;
-    return {...a, rate, cost, current, pl, plPct};
+    return {...a, rate, buyRate, cost, current, pl, plPct};
   });
+  if(needsMigrationSave) saveAssets();
 
   const totalCost = rows.reduce((s,a)=>s+a.cost,0);
   const totalCurrent = rows.reduce((s,a)=>s+a.current,0);
@@ -836,6 +849,9 @@ function renderInner(){
     const buyPriceCell = unlocked
       ? `<input class="cell-input" type="number" step="0.01" value="${a.buyPrice}" onchange="updateField(${i},'buyPrice',this.value)">`
       : '<span class="live-price">•••</span>';
+    const buyRateCell = unlocked
+      ? `<input class="cell-input" type="number" step="0.0001" value="${a.buyRate.toFixed(4)}" ${a.currency==='PLN'?'disabled':''} onchange="updateField(${i},'buyRate',this.value)">`
+      : '<span class="live-price">•••</span>';
     const kursCell = unlocked
       ? `<input class="cell-input" type="number" step="0.0001" value="${a.rate.toFixed(4)}" ${a.currency==='PLN'?'disabled':''} onchange="updateField(${i},'customRate',this.value)">`
       : '<span class="live-price">•••</span>';
@@ -871,6 +887,7 @@ function renderInner(){
           <option value="EUR" ${a.currency==='EUR'?'selected':''}>EUR</option>
         </select>
       </td>
+      <td class="num">${buyRateCell}</td>
       <td class="num">${kursCell}</td>
       <td class="num">${priceCell}</td>
       <td><input class="cell-input" type="text" style="width:64px;text-align:left;padding:5px 6px;" value="${a.usTicker || ''}" placeholder="np. AAPL" onchange="updateField(${i},'usTicker',this.value)"></td>
