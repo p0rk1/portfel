@@ -366,7 +366,6 @@ let startingCash = 0;
 let rates = { usd: 3.7568, eur: 4.2905, marginPct: 0.5 };
 let finnhubKey = '';
 let selectedBroker = 'custom';
-let salesLog = [];
 
 const BROKERS = {
   xtb: {
@@ -400,6 +399,17 @@ const BROKERS = {
     note: 'USA: 0,08% (min. 1 USD). GPW: 0,12% (min. 10 zł). Przewalutowanie 0,25%.'
   }
 };
+
+function sanitizeMarginPct(){
+  if(typeof rates.marginPct !== 'number' || isNaN(rates.marginPct) || rates.marginPct < 0 || rates.marginPct > 2){
+    console.warn('[portfel] Nieprawidłowa marża wykryta (' + rates.marginPct + ') — resetuję do wartości domyślnej.');
+    rates.marginPct = (selectedBroker !== 'custom' && BROKERS[selectedBroker]) ? BROKERS[selectedBroker].fxMargin : 0.5;
+    const marginField = document.getElementById('f-margin');
+    if(marginField) marginField.value = rates.marginPct;
+    return true;
+  }
+  return false;
+}
 
 function applyBrokerPreset(key){
   selectedBroker = key;
@@ -579,6 +589,7 @@ async function load(){
     const r4 = await store.get('portfel-rates-v3');
     if(r4){ const parsed = JSON.parse(r4.value); if(parsed.usd) rates.usd = parsed.usd; if(parsed.eur) rates.eur = parsed.eur; if(typeof parsed.marginPct === 'number') rates.marginPct = parsed.marginPct; }
   }catch(e){ /* keep defaults */ }
+  sanitizeMarginPct();
 
   const hasLocalData = assets.length > 0 || startingCash > 0;
   const isHosted = location.protocol === 'http:' || location.protocol === 'https:';
@@ -596,6 +607,7 @@ async function load(){
           if(typeof data.rates.eur === 'number') rates.eur = data.rates.eur;
           if(typeof data.rates.marginPct === 'number') rates.marginPct = data.rates.marginPct;
         }
+        sanitizeMarginPct();
         saveAssets(); saveSellHistory(); saveBuyAmount_raw(buyAmount); saveCash_raw(startingCash); saveRates_raw(rates);
       }
     }catch(e){ /* brak commitowanego json obok index.html, lub otwarte lokalnie — zostaje puste */ }
@@ -711,6 +723,7 @@ async function saveRates(){
   rates.usd = isNaN(usd) ? rates.usd : usd;
   rates.eur = isNaN(eur) ? rates.eur : eur;
   rates.marginPct = isNaN(margin) ? rates.marginPct : margin;
+  sanitizeMarginPct();
   try{ await store.set('portfel-rates-v3', JSON.stringify(rates)); }catch(e){ console.error(e); }
 }
 
@@ -847,6 +860,7 @@ function render(){
 }
 
 function renderInner(){
+  sanitizeMarginPct();
   const unlockArea = document.getElementById('unlock-area');
   if(unlocked){
     unlockArea.innerHTML = '<div class="hint" style="display:flex;align-items:center;gap:10px;">🔓 Szczegóły widoczne.<button onclick="lockAgain()" style="background:var(--surface-2);color:var(--gold);border:1px solid var(--line);padding:6px 12px;">Zablokuj ponownie</button></div>';
@@ -1185,6 +1199,7 @@ function importData(file){
         if(typeof data.rates.eur === 'number') rates.eur = data.rates.eur;
         if(typeof data.rates.marginPct === 'number') rates.marginPct = data.rates.marginPct;
       }
+      sanitizeMarginPct();
       document.getElementById('f-buy').value = buyAmount || '';
       if(buyAmount > 0 && document.getElementById('buy-field-wrap').style.display === 'none') toggleBuyAmountField();
       document.getElementById('f-cash').value = startingCash || '';
